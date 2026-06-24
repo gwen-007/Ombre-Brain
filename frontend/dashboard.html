@@ -2303,6 +2303,18 @@
 
       <div style="margin-bottom:18px;">
         <div style="font-weight:600;font-size:13px;margin-bottom:6px;">脱水 / 打标 LLM</div>
+        <div class="config-row" style="align-items:center;">
+          <label>服务商预设</label>
+          <select id="dehy-preset" onchange="applyDehyPreset()" style="flex:1;">
+            <option value="">— 选一下自动填好 URL + 模型名 —</option>
+            <option value="deepseek">DeepSeek（deepseek-chat）</option>
+            <option value="gemini">Gemini（gemini-2.5-flash-lite）</option>
+            <option value="siliconflow">硅基流动 SiliconFlow（DeepSeek-V3，免费额度）</option>
+            <option value="anthropic">Anthropic（claude-3-5-haiku）</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div id="dehy-preset-hint" style="margin-top:-4px;margin-bottom:10px;padding-left:122px;font-size:11px;color:var(--text-light);line-height:1.6;">先选服务商，会自动填好 Base URL 和正确的模型名。</div>
         <div id="dehy-key-notice" style="display:none;font-size:12px;color:var(--warning);margin-bottom:10px;padding:7px 10px;background:rgba(184,153,98,0.08);border-radius:4px;line-height:1.6;">
           <svg class="icon icon-warn" aria-hidden="true"><use href="#i-warn"></use></svg> 压缩 API Key 未配置，桶内容将无法被自动脱水压缩，记忆系统无法正常运行。请在下方输入框填入 Key 并点击「保存 Key」。
         </div>
@@ -2335,6 +2347,17 @@
 
       <div>
         <div style="font-weight:600;font-size:13px;margin-bottom:6px;">向量化 Embedding</div>
+        <div class="config-row" style="align-items:center;">
+          <label>服务商预设</label>
+          <select id="emb-preset" onchange="applyEmbedPreset()" style="flex:1;">
+            <option value="">— 选一下自动填好 URL + 模型名 —</option>
+            <option value="gemini">Gemini 云端（gemini-embedding-001）</option>
+            <option value="siliconflow">硅基流动 SiliconFlow（BAAI/bge-m3，免费）</option>
+            <option value="ollama">本地 Ollama（bge-m3，无需 key、不出网）</option>
+            <option value="custom">自定义 OpenAI 兼容</option>
+          </select>
+        </div>
+        <div id="emb-preset-hint" style="margin-top:-4px;margin-bottom:10px;padding-left:122px;font-size:11px;color:var(--text-light);line-height:1.6;">先选服务商，会自动填好 Base URL 和正确的模型名（省得填错 model 名报 400）。</div>
         <div id="emb-key-notice" style="display:none;font-size:12px;color:var(--warning);margin-bottom:10px;padding:7px 10px;background:rgba(184,153,98,0.08);border-radius:4px;line-height:1.6;">
           <svg class="icon icon-warn" aria-hidden="true"><use href="#i-warn"></use></svg> Ombre Brain 必须配置向量化 Embedding API Key 才能正常使用。未配置时语义检索完全不可用，记忆系统无法运作。请在下方填入 Key 并点击「保存 Key」，保存后立即生效。
         </div>
@@ -5344,6 +5367,47 @@ async function switchEmbedding(mode, skipConfirm) {
   } catch (e) {
     alert('请求失败：' + (e.message || e));
   }
+}
+
+// ===== 服务商预设：选一下自动填好 base_url + 正确的 model 名 =====
+// 参考酒馆：先选「用哪个」，字段自动长出来；从根上消灭「填错 model 名 400」那类坑。
+// 只填现有字段、不改保存逻辑（保存仍读这些 input 的值）。
+var EMBED_PRESETS = {
+  gemini:      { format: 'openai_compat', base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/', model: 'gemini-embedding-001' },
+  siliconflow: { format: 'openai_compat', base_url: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-m3' },
+  ollama:      { format: 'ollama',        base_url: '', model: 'bge-m3' },
+  custom:      { format: 'openai_compat', base_url: '', model: '' }
+};
+var DEHY_PRESETS = {
+  deepseek:    { format: 'openai_compat', base_url: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  gemini:      { format: 'openai_compat', base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/', model: 'gemini-2.5-flash-lite' },
+  siliconflow: { format: 'openai_compat', base_url: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-V3' },
+  anthropic:   { format: 'anthropic',     base_url: 'https://api.anthropic.com', model: 'claude-3-5-haiku-latest' },
+  custom:      { format: 'openai_compat', base_url: '', model: '' }
+};
+function _setVal(id, v) { var el = document.getElementById(id); if (el != null) el.value = v; }
+function applyEmbedPreset() {
+  var k = (document.getElementById('emb-preset') || {}).value || '';
+  var p = EMBED_PRESETS[k]; if (!p) return;
+  _setVal('cfg-emb-format', p.format);
+  _setVal('cfg-emb-base-url', p.base_url);
+  _setVal('cfg-emb-model', p.model);
+  if (k === 'ollama') _setVal('cfg-emb-enabled', 'true');
+  if (typeof onEmbFormatChange === 'function') onEmbFormatChange();
+  var hint = document.getElementById('emb-preset-hint');
+  if (hint) hint.textContent = (k === 'ollama')
+    ? '本地模式：填好了 bge-m3。无需 key —— 用下方「一键本地化」装+起+下模型，或已起 ollama 就直接「保存」。'
+    : '已自动填好 Base URL + 模型名，填入对应 key 点「保存」再「测试」即可。';
+}
+function applyDehyPreset() {
+  var k = (document.getElementById('dehy-preset') || {}).value || '';
+  var p = DEHY_PRESETS[k]; if (!p) return;
+  _setVal('cfg-dehy-format', p.format);
+  _setVal('cfg-dehy-url', p.base_url);
+  _setVal('cfg-dehy-model', p.model);
+  if (typeof onDehyFormatChange === 'function') onDehyFormatChange();
+  var hint = document.getElementById('dehy-preset-hint');
+  if (hint) hint.textContent = '已自动填好 Base URL + 模型名，填入对应 key 点「保存」再「测试」即可。';
 }
 
 // 一键本地化：检测系统 → 装运行时（免提权）→ 起子进程 → 下模型 → 切本地重算
